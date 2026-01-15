@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environments
+venv/
+.env/
+
+# Data (never commit)
+data/*
+!data/.gitkeep
+
+# Outputs / experiments
+outputs/*
+!outputs/.gitkeep
+
+# Large / binary files
+*.hdf5
+*.h5
+*.pt
+*.pth
+*.ckpt
+
+# System junk
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
+
