@@ -15,27 +15,37 @@ class HDF5GraphWaveDataset(Dataset):
             hdf5_path: Path to HDF5 file created by build_dataset
         """
         self.hdf5_path = hdf5_path
+        self.keys = self._get_hdf5_keys(hdf5_path)
+        self.node_dim, self.wave_dim = self._get_input_dim(hdf5_path, self.keys)
         
-        with h5py.File(hdf5_path, 'r') as f:
-            self.keys = list(f.keys())
+        print(f"Loaded {len(self.keys)} samples")
+        print(f"Node feature dimension: {self.node_dim}")
+        print(f"Waveform dimension: {self.wave_dim}")
 
+    @staticmethod
+    def _get_hdf5_keys(hdf5_path):
         with h5py.File(hdf5_path, 'r') as f:
-            first_group = f[self.keys[0]]
+            keys = list(f.keys())
+
+        return keys
+
+    @staticmethod
+    def _get_input_dim(hdf5_path, keys):
+        with h5py.File(hdf5_path, 'r') as f:
+            first_group = f[keys[0]]
 
             if 'graph_x' not in first_group:
                 raise ValueError("graph_x not found in HDF5")
 
-            self.node_dim = first_group['graph_x'].shape[1]
+            node_dim = first_group['graph_x'].shape[1]
             
             if 'waveforms' not in first_group:
                 raise ValueError("waveforms not found in HDF5")
 
             wf_shape = first_group['waveforms'].shape
-            self.wave_dim = np.prod(wf_shape)
-        
-        print(f"Loaded {len(self.keys)} samples")
-        print(f"Node feature dimension: {self.node_dim}")
-        print(f"Waveform dimension: {self.wave_dim}")
+            wave_dim = np.prod(wf_shape)
+
+        return node_dim, wave_dim
     
     def __len__(self):
         return len(self.keys)
