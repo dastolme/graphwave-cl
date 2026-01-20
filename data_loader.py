@@ -9,15 +9,27 @@ class HDF5GraphWaveDataset(Dataset):
     """
     Dataset loader for HDF5 files containing graph-waveform pairs.
     """
-    def __init__(self, hdf5_path: str):
+    def __init__(self, hdf5_path: str, apply_scaling: False):
         """
         Args:
             hdf5_path: Path to HDF5 file created by build_dataset
+            apply_scaling: Whether to apply normalization to features
         """
         self.hdf5_path = hdf5_path
+        self.apply_scaling = apply_scaling
+        
         self.keys = self._get_hdf5_keys(hdf5_path)
         self.node_dim, self.wave_dim = self._get_input_dim(hdf5_path, self.keys)
-        
+
+        if self.apply_scaling:
+            self.int_min, self.int_max = self._compute_node_stats()
+            self.wave_min, self.wave_max = self._compute_wave_stats()
+            print(f"Intensity will be scaled to [-1, 1]")
+            print(f"Waveforms will be scaled to [0, 1]")
+        else:
+            self.int_min = self.int_max = None
+            self.wave_min = self.wave_max = None
+            
         print(f"Loaded {len(self.keys)} samples")
         print(f"Node feature dimension: {self.node_dim}")
         print(f"Waveform dimension: {self.wave_dim}")
