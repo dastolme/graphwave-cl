@@ -17,6 +17,7 @@ class HDF5GraphWaveDataset(Dataset):
         """
         self.hdf5_path = hdf5_path
         self.apply_scaling = apply_scaling
+        self.TOTAL_PIXEL_SIDE = 2304
         
         self.keys = self._get_hdf5_keys(hdf5_path)
         self.node_dim, self.wave_dim = self._get_input_dim(hdf5_path, self.keys)
@@ -113,6 +114,8 @@ class HDF5GraphWaveDataset(Dataset):
             )
 
             if self.apply_scaling:
+                node_features[:, 0] = 2 * (node_features[:, 0] / self.TOTAL_PIXEL_SIDE) - 1
+                node_features[:, 1] = 2 * (node_features[:, 1] / self.TOTAL_PIXEL_SIDE) - 1
 
                 intensity_range = self.int_max - self.int_min
                 intensity_range = torch.clamp(intensity_range, min=1e-6)
