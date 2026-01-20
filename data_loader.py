@@ -46,6 +46,38 @@ class HDF5GraphWaveDataset(Dataset):
             wave_dim = np.prod(wf_shape)
 
         return node_dim, wave_dim
+
+    def _compute_node_stats(self):
+        """Compute min/max for intensity column (column 2) of node features"""
+        all_intensities = []
+
+        with h5py.File(self.hdf5_path, 'r') as f:
+            for key in list(f.keys()):
+                node = f[key]['graph_x'][:]
+                all_intensities.append(node[:, 2])
+
+        all_intensities = np.concatenate(all_intensities)
+        min_val = torch.tensor(all_intensities.min(), dtype=torch.float32)
+        max_val = torch.tensor(all_intensities.max(), dtype=torch.float32)
+
+        print(f"Node intensity range: [{min_val:.4f}, {max_val:.4f}]")
+        return min_val, max_val
+
+    def _compute_wave_stats(self):
+        """Compute global min/max across all waveforms and PMTs"""
+        all_waves = []
+
+        with h5py.File(self.hdf5_path, 'r') as f:
+            for key in list(f.keys()):
+                wf = f[key]['waveforms'][:]
+                all_waves.append(wf.flatten())
+
+        all_waves = np.concatenate(all_waves)
+        min_val = torch.tensor(all_waves.min(), dtype=torch.float32)
+        max_val = torch.tensor(all_waves.max(), dtype=torch.float32)
+
+        print(f"Waveform range: [{min_val:.4f}, {max_val:.4f}]")
+        return min_val, max_val
     
     def __len__(self):
         return len(self.keys)
