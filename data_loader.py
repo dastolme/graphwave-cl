@@ -141,7 +141,8 @@ def collate_fn(batch: List[Tuple[Data, torch.Tensor]]):
     
     return batched_graphs, batched_waves
 
-def create_dataloaders(hdf5_path: str, 
+def create_dataloaders(hdf5_path: str,
+                       apply_scaling: str = False, 
                        batch_size_train: int = 32,
                        batch_size_val: int = 8,  
                        train_split: float = 0.8,
@@ -160,7 +161,7 @@ def create_dataloaders(hdf5_path: str,
     Returns:
         train_loader, val_loader, dataset
     """
-    dataset = HDF5GraphWaveDataset(hdf5_path)
+    dataset = HDF5GraphWaveDataset(hdf5_path, apply_scaling)
     
     train_size = int(train_split * len(dataset))
     val_size = len(dataset) - train_size
