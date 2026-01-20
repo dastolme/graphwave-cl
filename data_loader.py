@@ -110,9 +110,20 @@ class HDF5GraphWaveDataset(Dataset):
 
             waveforms = torch.tensor(
                 group['waveforms'][:], dtype=torch.float32
-            ).flatten()
+            )
+
+            if self.apply_scaling:
+
+                intensity_range = self.int_max - self.int_min
+                intensity_range = torch.clamp(intensity_range, min=1e-6)
+                node_features[:, 2] = 2 * ((node_features[:, 2] - self.int_min) / intensity_range) - 1
+
+                wave_range = self.wave_max - self.wave_min
+                wave_range = torch.clamp(wave_range, min=1e-6)
+                waveforms = (waveforms - self.wave_min) / wave_range
         
-        # Create PyG Data object
+        
+        waveforms = waveforms.flatten()
         graph = Data(x=node_features, edge_index=edge_index)
         
         return graph, waveforms
