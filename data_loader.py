@@ -9,7 +9,7 @@ class HDF5GraphWaveDataset(Dataset):
     """
     Dataset loader for HDF5 files containing graph-waveform pairs.
     """
-    def __init__(self, hdf5_path: str, apply_scaling: False):
+    def __init__(self, hdf5_path: str, apply_scaling: bool = False):
         """
         Args:
             hdf5_path: Path to HDF5 file created by build_dataset
@@ -20,7 +20,7 @@ class HDF5GraphWaveDataset(Dataset):
         self.TOTAL_PIXEL_SIDE = 2304
         
         self.keys = self._get_hdf5_keys(hdf5_path)
-        self.node_dim, self.wave_channels, self.wave_lenght= self._get_input_dim(hdf5_path, self.keys)
+        self.node_dim, self.wave_channels, self.wave_length= self._get_input_dim(hdf5_path, self.keys)
 
         if self.apply_scaling:
             self.int_min, self.int_max = self._compute_node_stats()
@@ -34,7 +34,7 @@ class HDF5GraphWaveDataset(Dataset):
         print(f"Loaded {len(self.keys)} samples")
         print(f"Node feature dimension: {self.node_dim}")
         print(f"Waveform channels: {self.wave_channels}")
-        print(f"Waveform lenght: {self.wave_lenght}")
+        print(f"Waveform lenght: {self.wave_length}")
 
     @staticmethod
     def _get_hdf5_keys(hdf5_path):
@@ -125,10 +125,9 @@ class HDF5GraphWaveDataset(Dataset):
 
                 wave_range = self.wave_max - self.wave_min
                 wave_range = torch.clamp(wave_range, min=1e-6)
-                waveforms = (waveforms - self.wave_min) / wave_range
+                waveforms = (waveforms - self.wave_min) / wave_range   
         
-        
-        waveforms = waveforms.flatten()
+        waveforms = waveforms.permute(1, 0)
         graph = Data(x=node_features, edge_index=edge_index)
         
         return graph, waveforms

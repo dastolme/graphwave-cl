@@ -27,7 +27,6 @@ class WaveEncoder(nn.Module):
     """Waveform encoder using 1D CNN for 4 PMTs with waveforms of length 1024"""
     def __init__(self, wave_in_dim=4, hidden_dim=128, out_dim=128, dropout=0.3):
         super().__init__()
-        
         self.conv_layers = nn.Sequential(
             nn.Conv1d(in_channels=wave_in_dim, out_channels=hidden_dim, kernel_size=3, padding=1),
             nn.ReLU(),
@@ -41,7 +40,9 @@ class WaveEncoder(nn.Module):
         )
         
     def forward(self, w):
-        return self.conv_layers(w)
+        x = self.conv_layers(w)
+        x = x.mean(dim=-1)
+        return x
 
 class GraphWaveModel(nn.Module):
     """

@@ -98,13 +98,13 @@ def main(args):
     print("\nInitializing model...")
     model = GraphWaveModel(
         node_in_dim=dataset.node_dim,
-        wave_in_dim=dataset.wave_dim,
+        wave_in_dim=dataset.wave_channels,
         emb_dim=args.emb_dim,
         temperature=args.temperature
     ).to(device)
     
     print(f"Node input dim: {dataset.node_dim}")
-    print(f"Wave input dim: {dataset.wave_dim}")
+    print(f"Wave input dim: {dataset.wave_channels}")
     print(f"Embedding dim: {args.emb_dim}")
     print(f"Total parameters: {sum(p.numel() for p in model.parameters()):,}")
     
