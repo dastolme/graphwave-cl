@@ -87,6 +87,7 @@ def main(args):
     print("\nLoading dataset...")
     train_loader, val_loader, dataset = create_dataloaders(
         hdf5_path=args.data_path,
+        apply_scaling=True,
         batch_size_train=args.batch_size_train,
         batch_size_val=args.batch_size_val,
         train_split=args.train_split,
