@@ -5,36 +5,31 @@ from torch_geometric.nn import GCNConv, global_mean_pool
 
 class GraphEncoder(nn.Module):
     """Graph encoder using GCN layers"""
-    def __init__(self, node_in_dim, hidden_dim=64, out_dim=128, dropout=0.3):
+    def __init__(self, node_in_dim, hidden_dim=64, out_dim=128,):
         super().__init__()
         self.conv1 = GCNConv(node_in_dim, hidden_dim)
         self.conv2 = GCNConv(hidden_dim, hidden_dim)
         self.lin = nn.Linear(hidden_dim, out_dim)
-        self.dropout = dropout
     
     def forward(self, x, edge_index, batch):
         x = self.conv1(x, edge_index)
         x = F.relu(x)
-        x = F.dropout(x, p=self.dropout, training=self.training)
         x = self.conv2(x, edge_index)
         x = F.relu(x)
-        x = F.dropout(x, p=self.dropout, training=self.training)
         g = global_mean_pool(x, batch)
         z = self.lin(g)
         return z
 
 class WaveEncoder(nn.Module):
     """Waveform encoder using 1D CNN for 4 PMTs with waveforms of length 1024"""
-    def __init__(self, wave_in_dim=4, hidden_dim=128, out_dim=128, dropout=0.3):
+    def __init__(self, wave_in_dim=4, hidden_dim=128, out_dim=128):
         super().__init__()
         self.conv_layers = nn.Sequential(
             nn.Conv1d(in_channels=wave_in_dim, out_channels=hidden_dim, kernel_size=3, padding=1),
             nn.ReLU(),
-            nn.Dropout(dropout),
             
             nn.Conv1d(in_channels=hidden_dim, out_channels=hidden_dim, kernel_size=3, padding=1),
             nn.ReLU(),
-            nn.Dropout(dropout),
             
             nn.Conv1d(in_channels=hidden_dim, out_channels=out_dim, kernel_size=3, padding=1),
         )
