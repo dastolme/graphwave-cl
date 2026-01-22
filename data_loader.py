@@ -20,7 +20,7 @@ class HDF5GraphWaveDataset(Dataset):
         self.TOTAL_PIXEL_SIDE = 2304
         
         self.keys = self._get_hdf5_keys(hdf5_path)
-        self.node_dim, self.wave_dim = self._get_input_dim(hdf5_path, self.keys)
+        self.node_dim, self.wave_channels, self.wave_lenght= self._get_input_dim(hdf5_path, self.keys)
 
         if self.apply_scaling:
             self.int_min, self.int_max = self._compute_node_stats()
@@ -33,7 +33,8 @@ class HDF5GraphWaveDataset(Dataset):
             
         print(f"Loaded {len(self.keys)} samples")
         print(f"Node feature dimension: {self.node_dim}")
-        print(f"Waveform dimension: {self.wave_dim}")
+        print(f"Waveform channels: {self.wave_channels}")
+        print(f"Waveform lenght: {self.wave_lenght}")
 
     @staticmethod
     def _get_hdf5_keys(hdf5_path):
@@ -56,9 +57,10 @@ class HDF5GraphWaveDataset(Dataset):
                 raise ValueError("waveforms not found in HDF5")
 
             wf_shape = first_group['waveforms'].shape
-            wave_dim = np.prod(wf_shape)
+            wave_length = wf_shape[0]
+            wave_channels = wf_shape[1]
 
-        return node_dim, wave_dim
+        return node_dim, wave_channels, wave_length
 
     def _compute_node_stats(self):
         """Compute min/max for intensity column (column 2) of node features"""
