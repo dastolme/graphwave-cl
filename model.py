@@ -24,21 +24,24 @@ class GraphEncoder(nn.Module):
         return z
 
 class WaveEncoder(nn.Module):
-    """Waveform encoder using MLP"""
-    def __init__(self, wave_in_dim, hidden_dim=128, out_dim=128, dropout=0.3):
+    """Waveform encoder using 1D CNN for 4 PMTs with waveforms of length 1024"""
+    def __init__(self, wave_in_dim=4, hidden_dim=128, out_dim=128, dropout=0.3):
         super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(wave_in_dim, hidden_dim),
+        
+        self.conv_layers = nn.Sequential(
+            nn.Conv1d(in_channels=wave_in_dim, out_channels=hidden_dim, kernel_size=3, padding=1),
             nn.ReLU(),
             nn.Dropout(dropout),
-            nn.Linear(hidden_dim, hidden_dim),
+            
+            nn.Conv1d(in_channels=hidden_dim, out_channels=hidden_dim, kernel_size=3, padding=1),
             nn.ReLU(),
             nn.Dropout(dropout),
-            nn.Linear(hidden_dim, out_dim),
+            
+            nn.Conv1d(in_channels=hidden_dim, out_channels=out_dim, kernel_size=3, padding=1),
         )
-    
+        
     def forward(self, w):
-        return self.net(w)
+        return self.conv_layers(w)
 
 class GraphWaveModel(nn.Module):
     """
