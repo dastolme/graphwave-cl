@@ -40,6 +40,7 @@ def validate(model, val_loader, device, writer=None, epoch=0):
     acc_sum = 0
     acc_g2w_sum = 0
     acc_w2g_sum = 0
+    hung_acc_sum = 0
     num_batches = 0
     
     with torch.no_grad():
@@ -53,23 +54,26 @@ def validate(model, val_loader, device, writer=None, epoch=0):
             metrics = model.compute_metrics(logits)
             
             total_loss += loss.item()
-            acc_sum += metrics["acc"].item()
-            acc_g2w_sum += metrics["acc_g2w"].item()
-            acc_w2g_sum += metrics["acc_w2g"].item()
+            acc_sum += metrics["acc"]
+            acc_g2w_sum += metrics["acc_g2w"]
+            acc_w2g_sum += metrics["acc_w2g"]
+            hung_acc_sum += metrics["hungarian_acc"] 
             num_batches += 1
     
     avg_loss = total_loss / num_batches
     avg_acc = acc_sum / num_batches
     avg_acc_g2w = acc_g2w_sum / num_batches
     avg_acc_w2g = acc_w2g_sum / num_batches
+    avg_hung_acc = hung_acc_sum / num_batches
     
     if writer is not None:
         writer.add_scalar('Loss/validation', avg_loss, epoch)
         writer.add_scalar('Accuracy/validation', avg_acc, epoch)
         writer.add_scalar('Accuracy/validation_g2w', avg_acc_g2w, epoch)
         writer.add_scalar('Accuracy/validation_w2g', avg_acc_w2g, epoch)
+        writer.add_scalar('Accuracy/validation_hungarian', avg_hung_acc, epoch)
     
-    return avg_loss, avg_acc
+    return avg_loss, avg_acc, avg_hung_acc
 
 def main(args):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -127,7 +131,7 @@ def main(args):
     
     for epoch in range(args.num_epochs):
         train_loss = train_epoch(model, train_loader, optimizer, device, writer, epoch)
-        val_loss, val_acc = validate(model, val_loader, device, writer, epoch)
+        val_loss, val_acc, hung_val_acc = validate(model, val_loader, device, writer, epoch)
         
         writer.add_scalar('Loss/train_epoch', train_loss, epoch)
         writer.add_scalars('Loss/train_vs_val', {
@@ -141,7 +145,9 @@ def main(args):
         print(f"Epoch {epoch+1:3d}/{args.num_epochs} | "
               f"Train Loss: {train_loss:.4f} | "
               f"Val Loss: {val_loss:.4f} | "
-              f"Val Acc: {val_acc:.4f}")
+              f"Val Acc: {val_acc:.4f} | "
+              f"Val Hungarian Acc: {hung_val_acc:.4f}")
+
         
         if val_loss < best_val_loss:
             best_val_loss = val_loss
@@ -152,6 +158,7 @@ def main(args):
                 'train_loss': train_loss,
                 'val_loss': val_loss,
                 'val_acc': val_acc,
+                'hung_val_acc': hung_val_acc,
                 'args': vars(args)
             }
             torch.save(checkpoint, output_dir / 'best_model.pth')
@@ -167,6 +174,7 @@ def main(args):
                 'train_loss': train_loss,
                 'val_loss': val_loss,
                 'val_acc': val_acc,
+                'hung_val_acc': hung_val_acc,
                 'args': vars(args)
             }
             torch.save(checkpoint, output_dir / f'checkpoint_epoch_{epoch+1}.pth')

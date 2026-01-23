@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch_geometric.nn import GCNConv, global_mean_pool
+from scipy.optimize import linear_sum_assignment
 
 class GraphEncoder(nn.Module):
     """Graph encoder using GCN layers"""
@@ -105,8 +106,15 @@ class GraphWaveModel(nn.Module):
         acc_w2g = (pred_w2g == labels).float().mean()
         acc = 0.5 * (acc_g2w + acc_w2g)
 
+        cost_matrix = -logits.cpu().numpy()
+        row_ind, col_ind = linear_sum_assignment(cost_matrix)
+        
+        hungarian_correct = (col_ind == row_ind).sum()
+        hungarian_acc = hungarian_correct / B
+
         return {
             "acc": acc,
             "acc_g2w": acc_g2w,
             "acc_w2g": acc_w2g,
+            "hungarian_acc": hungarian_acc
         }
