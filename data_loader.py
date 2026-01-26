@@ -10,127 +10,125 @@ class HDF5GraphWaveDataset(Dataset):
     Dataset loader for HDF5 files containing graph-waveform pairs.
     """
     def __init__(self, hdf5_path: str, apply_scaling: bool = False):
-        """
-        Args:
-            hdf5_path: Path to HDF5 file created by build_dataset
-            apply_scaling: Whether to apply normalization to features
-        """
-        self.hdf5_path = hdf5_path
         self.apply_scaling = apply_scaling
         self.TOTAL_PIXEL_SIDE = 2304
         
-        self.keys = self._get_hdf5_keys(hdf5_path)
-        self.node_dim, self.wave_channels, self.wave_length= self._get_input_dim(hdf5_path, self.keys)
-
+        print("Loading entire dataset into memory...")
+        self.samples = self._load_all_samples(hdf5_path)
+        
+        print(f"Loaded {len(self.samples)} samples into memory")
+        print(f"Node feature dimension: {self.node_dim}")
+        print(f"Waveform channels: {self.wave_channels}")
+        print(f"Waveform length: {self.wave_length}")
+        
         if self.apply_scaling:
-            self.int_min, self.int_max = self._compute_node_stats()
-            self.wave_min, self.wave_max = self._compute_wave_stats()
-            print(f"Intensity will be scaled to [-1, 1]")
-            print(f"Waveforms will be scaled to [0, 1]")
+            self._initialize_scaling_parameters()
         else:
             self.int_min = self.int_max = None
             self.wave_min = self.wave_max = None
-            
-        print(f"Loaded {len(self.keys)} samples")
-        print(f"Node feature dimension: {self.node_dim}")
-        print(f"Waveform channels: {self.wave_channels}")
-        print(f"Waveform lenght: {self.wave_length}")
 
-    @staticmethod
-    def _get_hdf5_keys(hdf5_path):
+    def _load_all_samples(self, hdf5_path: str) -> list:
+        """Load all samples from HDF5 file into memory."""
+        samples = []
+        
         with h5py.File(hdf5_path, 'r') as f:
             keys = list(f.keys())
-
-        return keys
-
-    @staticmethod
-    def _get_input_dim(hdf5_path, keys):
-        with h5py.File(hdf5_path, 'r') as f:
-            first_group = f[keys[0]]
-
-            if 'graph_x' not in first_group:
-                raise ValueError("graph_x not found in HDF5")
-
-            node_dim = first_group['graph_x'].shape[1]
             
-            if 'waveforms' not in first_group:
-                raise ValueError("waveforms not found in HDF5")
+            # Get dimensions from first sample
+            self._extract_dimensions(f[keys[0]])
+            
+            # Load all samples
+            for i, key in enumerate(keys):
+                if i % 1000 == 0:
+                    print(f"Loading sample {i}/{len(keys)}...")
+                
+                sample = self._load_single_sample(f[key])
+                samples.append(sample)
+        
+        return samples
 
-            wf_shape = first_group['waveforms'].shape
-            wave_length = wf_shape[0]
-            wave_channels = wf_shape[1]
+    def _extract_dimensions(self, group):
+        """Extract data dimensions from a sample group."""
+        self.node_dim = group['graph_x'].shape[1]
+        wf_shape = group['waveforms'].shape
+        self.wave_length = wf_shape[0]
+        self.wave_channels = wf_shape[1]
 
-        return node_dim, wave_channels, wave_length
+    def _load_single_sample(self, group) -> dict:
+        """Load a single sample from HDF5 group."""
+        return {
+            'node_features': torch.tensor(group['graph_x'][:], dtype=torch.float32),
+            'edge_index': torch.tensor(group['graph_edge_index'][:], dtype=torch.long),
+            'waveforms': torch.tensor(group['waveforms'][:], dtype=torch.float32)
+        }
+
+    def _initialize_scaling_parameters(self):
+        """Compute and store scaling parameters."""
+        self.int_min, self.int_max = self._compute_node_stats()
+        self.wave_min, self.wave_max = self._compute_wave_stats()
+        
+        print(f"Intensity will be scaled to [-1, 1]")
+        print(f"Waveforms will be scaled to [0, 1]")
 
     def _compute_node_stats(self):
-        """Compute min/max for intensity column (column 2) of node features"""
-        all_intensities = []
-
-        with h5py.File(self.hdf5_path, 'r') as f:
-            for key in list(f.keys()):
-                node = f[key]['graph_x'][:]
-                all_intensities.append(node[:, 2])
-
-        all_intensities = np.concatenate(all_intensities)
-        min_val = torch.tensor(all_intensities.min(), dtype=torch.float32)
-        max_val = torch.tensor(all_intensities.max(), dtype=torch.float32)
-
+        """Compute min/max for intensity column from in-memory data."""
+        all_intensities = torch.cat([
+            sample['node_features'][:, 2] 
+            for sample in self.samples
+        ])
+        
+        min_val = all_intensities.min()
+        max_val = all_intensities.max()
+        
         print(f"Node intensity range: [{min_val:.4f}, {max_val:.4f}]")
         return min_val, max_val
 
     def _compute_wave_stats(self):
-        """Compute global min/max across all waveforms and PMTs"""
-        all_waves = []
-
-        with h5py.File(self.hdf5_path, 'r') as f:
-            for key in list(f.keys()):
-                wf = f[key]['waveforms'][:]
-                all_waves.append(wf.flatten())
-
-        all_waves = np.concatenate(all_waves)
-        min_val = torch.tensor(all_waves.min(), dtype=torch.float32)
-        max_val = torch.tensor(all_waves.max(), dtype=torch.float32)
-
+        """Compute global min/max from in-memory data."""
+        all_waves = torch.cat([
+            sample['waveforms'].flatten() 
+            for sample in self.samples
+        ])
+        
+        min_val = all_waves.min()
+        max_val = all_waves.max()
+        
         print(f"Waveform range: [{min_val:.4f}, {max_val:.4f}]")
         return min_val, max_val
     
     def __len__(self):
-        return len(self.keys)
+        return len(self.samples)
     
     def __getitem__(self, idx):
-        key = self.keys[idx]
+        sample = self.samples[idx]
         
-        with h5py.File(self.hdf5_path, 'r') as f:
-            group = f[key]
-            
-            node_features = torch.tensor(
-                group['graph_x'][:], dtype=torch.float32
-            )
-
-            edge_index = torch.tensor(
-                group['graph_edge_index'][:], dtype=torch.long
-            )
-
-            waveforms = torch.tensor(
-                group['waveforms'][:], dtype=torch.float32
-            )
-
-            if self.apply_scaling:
-                node_features[:, 0] = 2 * (node_features[:, 0] / self.TOTAL_PIXEL_SIDE) - 1
-                node_features[:, 1] = 2 * (node_features[:, 1] / self.TOTAL_PIXEL_SIDE) - 1
-
-                intensity_range = self.int_max - self.int_min
-                intensity_range = torch.clamp(intensity_range, min=1e-6)
-                node_features[:, 2] = 2 * ((node_features[:, 2] - self.int_min) / intensity_range) - 1
-
-                wave_range = self.wave_max - self.wave_min
-                wave_range = torch.clamp(wave_range, min=1e-6)
-                waveforms = (waveforms - self.wave_min) / wave_range   
+        node_features = sample['node_features'].clone()
+        edge_index = sample['edge_index']
+        waveforms = sample['waveforms'].clone()
+        
+        if self.apply_scaling:
+            node_features = self._apply_node_scaling(node_features)
+            waveforms = self._apply_wave_scaling(waveforms)
         
         waveforms = waveforms.permute(1, 0)
         graph = Data(x=node_features, edge_index=edge_index)
         
         return graph, waveforms
+    
+    def _apply_node_scaling(self, node_features: torch.Tensor) -> torch.Tensor:
+        """Apply scaling to node features."""
+        node_features[:, 0] = 2 * (node_features[:, 0] / self.TOTAL_PIXEL_SIDE) - 1
+        node_features[:, 1] = 2 * (node_features[:, 1] / self.TOTAL_PIXEL_SIDE) - 1
+        
+        intensity_range = torch.clamp(self.int_max - self.int_min, min=1e-6)
+        node_features[:, 2] = 2 * ((node_features[:, 2] - self.int_min) / intensity_range) - 1
+        
+        return node_features
+    
+    def _apply_wave_scaling(self, waveforms: torch.Tensor) -> torch.Tensor:
+        """Apply scaling to waveforms."""
+        wave_range = torch.clamp(self.wave_max - self.wave_min, min=1e-6)
+        return (waveforms - self.wave_min) / wave_range
 
 def collate_fn(batch: List[Tuple[Data, torch.Tensor]]):
     """Custom collate function for DataLoader"""
