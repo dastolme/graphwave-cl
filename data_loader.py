@@ -67,7 +67,7 @@ class HDF5GraphWaveDataset(Dataset):
         self.int_min, self.int_max = self._compute_node_stats()
         self.wave_min, self.wave_max = self._compute_wave_stats()
         
-        print(f"Intensity will be scaled to [-1, 1]")
+        print(f"Intensity will be scaled to [0, 1]")
         print(f"Waveforms will be scaled to [0, 1]")
 
     def _compute_node_stats(self):
@@ -121,7 +121,7 @@ class HDF5GraphWaveDataset(Dataset):
         node_features[:, 1] = 2 * (node_features[:, 1] / self.TOTAL_PIXEL_SIDE) - 1
         
         intensity_range = torch.clamp(self.int_max - self.int_min, min=1e-6)
-        node_features[:, 2] = 2 * ((node_features[:, 2] - self.int_min) / intensity_range) - 1
+        node_features[:, 2] = (node_features[:, 2] - self.int_min) / intensity_range
         
         return node_features
     
