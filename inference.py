@@ -1,7 +1,8 @@
 import os
 import uproot
+import pandas as pd
 import awkward as ak
-from typing import Dict
+from typing import Dict, Optional
 from dataclasses import dataclass
 
 RECO_PATH = ""
@@ -44,6 +45,12 @@ class RecoFileMan:
         pmts_df = ak.to_dataframe(pmts_tree)
 
         return pmts_df
+
+class RecoFilePreprocessor:
+    def __init__(self, cmos_df: pd.DataFrame, pmt_df: pd.DataFrame, scaling_params: Optional[Dict]):
+        self.cmos_df = cmos_df
+        self.pmt_df = pmt_df
+        self.scaling_params = scaling_params
 
 
 
