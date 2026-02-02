@@ -15,7 +15,7 @@ class RecoFile:
     cmos_tree: str
     pmts_tree: str
 
-class RecoFileMan:
+class RecoFileReader:
     def __init__(self, reco_file: RecoFile):
         self.reco_file = reco_file
         self.root_file = None
