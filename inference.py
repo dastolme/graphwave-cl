@@ -5,9 +5,11 @@ import awkward as ak
 from typing import Dict, Optional
 from dataclasses import dataclass
 
-RECO_PATH = ""
-RECO_CMOS_VARIABLES = []
-RECO_PMT_VARIABLES = []
+RECO_PATH = "https://s3.cr.cnaf.infn.it:7480/cygno:cygno-analysis/RECO/Run5_Saladin/"
+RECO_CMOS_VARIABLES = ['event', 'nSc', 'sc_redpixIdx', 
+                       'redpix_ix', 'redpix_iy', 'redpix_iz']
+RECO_PMT_VARIABLES = ['pmt_wf_event', 'pmt_wf_trigger', 'pmt_wf_sampling', 
+                      'pmt_wf_channel', 'pmt_fullWaveform_Y']
 
 @dataclass
 class RecoFile:
