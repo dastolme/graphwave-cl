@@ -1,4 +1,5 @@
 import os
+import torch
 import uproot
 import pandas as pd
 import awkward as ak
@@ -16,6 +17,19 @@ class RecoFile:
     number: int
     cmos_tree: str
     pmts_tree: str
+
+@dataclass
+class Graph:
+    event: int
+    cluster_id: str
+    x: torch.Tensor
+    edge_index: torch.Tensor
+
+@dataclass
+class WaveformSet:
+    event: int
+    trigger_id: str
+    waveforms: pd.DataFrame
 
 class RecoFileReader:
     def __init__(self, reco_file: RecoFile):
