@@ -1,23 +1,15 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch_geometric.nn import GATv2Conv, global_mean_pool
+from torch_geometric.nn import GATv2Conv, SAGEConv, global_mean_pool
 from scipy.optimize import linear_sum_assignment
 
 class GraphEncoder(nn.Module):
     """Graph encoder using GCN layers"""
-    def __init__(self, node_in_dim, hidden_dim=64, out_dim=128, heads=1, dropout=0.1):
+    def __init__(self, node_in_dim, hidden_dim=64, out_dim=128, heads=4, dropout=0.1):
         super().__init__()
-        self.conv1 = GATv2Conv(
-            node_in_dim,
-            hidden_dim,
-            heads=1,
-            concat=False,
-            dropout=dropout,
-        )
-
-        self.conv2 = SAGEConv(hidden_dim, hidden_dim * 2)
-
+        self.conv1 = GATv2Conv(node_in_dim, hidden_dim, heads=heads, concat=True, dropout=dropout)
+        self.conv2 = GATv2Conv(hidden_dim * heads, hidden_dim * 2, heads=1, concat=False, dropout=dropout)
         self.lin = nn.Linear(hidden_dim * 2, out_dim)
         self.dropout = dropout
     
@@ -25,12 +17,11 @@ class GraphEncoder(nn.Module):
         x = self.conv1(x, edge_index)
         x = F.elu(x)
         x = F.dropout(x, p=self.dropout, training=self.training)
-        
         x = self.conv2(x, edge_index)
         x = F.elu(x)
-        
         g = global_mean_pool(x, batch)
-        return self.lin(g)
+        z = self.lin(g)
+        return z
 
 class WaveEncoder(nn.Module):
     """Waveform encoder using 1D CNN for 4 PMTs with waveforms of length 1024"""
