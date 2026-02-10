@@ -17,6 +17,14 @@ def train_epoch(model, train_loader, optimizer, device, writer=None, epoch=0):
         batch_graphs = batch_graphs.to(device)
         batch_waves = batch_waves.to(device)
         
+        if batch_idx == 0 and epoch == 0:
+            print(
+                "[DEBUG]",
+                "nodes:", batch_graphs.x.size(0),
+                "edges:", batch_graphs.edge_index.size(1),
+                "graphs in batch:", batch_graphs.num_graphs
+            )
+        
         logits = model(batch_graphs, batch_waves)
         loss = model.compute_loss(logits)
         
