@@ -9,9 +9,9 @@ class HDF5GraphWaveDataset(Dataset):
     """
     Dataset loader for HDF5 files containing graph-waveform pairs.
     """
-    def __init__(self, hdf5_path: str, apply_scaling: bool = False):
+    def __init__(self, hdf5_path: str, apply_scaling: bool = False, rebin_factor: int = 1):
         self.apply_scaling = apply_scaling
-        self.TOTAL_PIXEL_SIDE = 2304
+        self.TOTAL_PIXEL_SIDE = 2304 // rebin_factor
         
         print("Loading entire dataset into memory...")
         self.samples = self._load_all_samples(hdf5_path)
@@ -141,35 +141,50 @@ def collate_fn(batch: List[Tuple[Data, torch.Tensor]]):
     return batched_graphs, batched_waves
 
 def create_dataloaders(hdf5_path: str,
-                       apply_scaling: str = False, 
+                       apply_scaling: bool = False,
+                       rebin_factor: int = 1, 
                        batch_size_train: int = 32,
-                       batch_size_val: int = 8,  
-                       train_split: float = 0.8,
+                       batch_size_val: int = 8,
+                       batch_size_test: int = 8,
+                       train_split: float = 0.75,
+                       val_split: float = 0.20,
                        num_workers: int = 0,
-                       pin_memory: bool = True):
+                       pin_memory: bool = True,
+                       random_seed: int = 42):
     """
-    Create train and validation dataloaders.
+    Create train, validation, and test dataloaders.
     
     Args:
         hdf5_path: Path to HDF5 dataset
-        batch_size: Batch size
+        apply_scaling: Whether to apply feature scaling
+        batch_size_train: Batch size for training
+        batch_size_val: Batch size for validation
+        batch_size_test: Batch size for testing
         train_split: Fraction of data for training
+        val_split: Fraction of data for validation
         num_workers: Number of worker processes
         pin_memory: Whether to pin memory (use True for GPU)
+        random_seed: Random seed for reproducibility
     
     Returns:
-        train_loader, val_loader, dataset
+        train_loader, val_loader, test_loader, dataset
     """
-    dataset = HDF5GraphWaveDataset(hdf5_path, apply_scaling)
+    dataset = HDF5GraphWaveDataset(hdf5_path, apply_scaling, rebin_factor)
     
-    train_size = int(train_split * len(dataset))
-    val_size = len(dataset) - train_size
-    train_dataset, val_dataset = torch.utils.data.random_split(
-        dataset, [train_size, val_size]
+    total_size = len(dataset)
+    train_size = int(train_split * total_size)
+    val_size = int(val_split * total_size)
+    test_size = total_size - train_size - val_size
+    
+    generator = torch.Generator().manual_seed(random_seed)
+    train_dataset, val_dataset, test_dataset = torch.utils.data.random_split(
+        dataset, [train_size, val_size, test_size], generator=generator
     )
     
-    print(f"\nTrain samples: {len(train_dataset)}")
-    print(f"Val samples: {len(val_dataset)}")
+    print(f"\nDataset split:")
+    print(f"  Train samples: {len(train_dataset)} ({100*train_split:.1f}%)")
+    print(f"  Val samples:   {len(val_dataset)} ({100*val_split:.1f}%)")
+    print(f"  Test samples:  {len(test_dataset)} ({100*(1-train_split-val_split):.1f}%)")
     
     train_loader = DataLoader(
         train_dataset,
@@ -189,4 +204,13 @@ def create_dataloaders(hdf5_path: str,
         pin_memory=pin_memory
     )
     
-    return train_loader, val_loader, dataset
+    test_loader = DataLoader(
+        test_dataset,
+        batch_size=batch_size_test,
+        shuffle=False,
+        collate_fn=collate_fn,
+        num_workers=num_workers,
+        pin_memory=pin_memory
+    )
+    
+    return train_loader, val_loader, test_loader, dataset
