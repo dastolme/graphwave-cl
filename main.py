@@ -41,8 +41,8 @@ def train_epoch(model, train_loader, optimizer, device, writer=None, epoch=0):
     
     return total_loss / num_batches
 
-def validate(model, val_loader, device, writer=None, epoch=0):
-    """Validation loop"""
+def validate(model, val_loader, device, writer=None, epoch=0, prefix='validation'):
+    """Validation/test loop"""
     model.eval()
     total_loss = 0
     acc_sum = 0
@@ -75,13 +75,69 @@ def validate(model, val_loader, device, writer=None, epoch=0):
     avg_hung_acc = hung_acc_sum / num_batches
     
     if writer is not None:
-        writer.add_scalar('Loss/validation', avg_loss, epoch)
-        writer.add_scalar('Accuracy/validation', avg_acc, epoch)
-        writer.add_scalar('Accuracy/validation_g2w', avg_acc_g2w, epoch)
-        writer.add_scalar('Accuracy/validation_w2g', avg_acc_w2g, epoch)
-        writer.add_scalar('Accuracy/validation_hungarian', avg_hung_acc, epoch)
+        writer.add_scalar(f'Loss/{prefix}', avg_loss, epoch)
+        writer.add_scalar(f'Accuracy/{prefix}', avg_acc, epoch)
+        writer.add_scalar(f'Accuracy/{prefix}_g2w', avg_acc_g2w, epoch)
+        writer.add_scalar(f'Accuracy/{prefix}_w2g', avg_acc_w2g, epoch)
+        writer.add_scalar(f'Accuracy/{prefix}_hungarian', avg_hung_acc, epoch)
     
     return avg_loss, avg_acc, avg_hung_acc
+
+def evaluate_test(model, test_loader, device, output_dir):
+    """Final test set evaluation"""
+    print("\n" + "="*60)
+    print("Evaluating on test set...")
+    print("="*60)
+    
+    model.eval()
+    total_loss = 0
+    acc_sum = 0
+    acc_g2w_sum = 0
+    acc_w2g_sum = 0
+    hung_acc_sum = 0
+    num_batches = 0
+    
+    with torch.no_grad():
+        for batch_graphs, batch_waves in test_loader:
+            batch_graphs = batch_graphs.to(device)
+            batch_waves = batch_waves.to(device)
+            
+            logits = model(batch_graphs, batch_waves)
+            loss = model.compute_loss(logits)
+            metrics = model.compute_metrics(logits)
+            
+            total_loss += loss.item()
+            acc_sum += metrics["acc"]
+            acc_g2w_sum += metrics["acc_g2w"]
+            acc_w2g_sum += metrics["acc_w2g"]
+            hung_acc_sum += metrics["hungarian_acc"]
+            num_batches += 1
+    
+    test_results = {
+        'loss': total_loss / num_batches,
+        'acc': acc_sum / num_batches,
+        'acc_g2w': acc_g2w_sum / num_batches,
+        'acc_w2g': acc_w2g_sum / num_batches,
+        'hungarian_acc': hung_acc_sum / num_batches
+    }
+    
+    print(f"\nTest Results:")
+    print(f"  Loss:           {test_results['loss']:.4f}")
+    print(f"  Accuracy:       {test_results['acc']:.4f}")
+    print(f"  Acc G→W:        {test_results['acc_g2w']:.4f}")
+    print(f"  Acc W→G:        {test_results['acc_w2g']:.4f}")
+    print(f"  Hungarian Acc:  {test_results['hungarian_acc']:.4f}")
+    
+    test_results_path = output_dir / 'test_results.txt'
+    with open(test_results_path, 'w') as f:
+        f.write("Test Set Evaluation Results\n")
+        f.write("="*40 + "\n")
+        for key, value in test_results.items():
+            f.write(f"{key:20s}: {value:.6f}\n")
+    
+    print(f"\nTest results saved to: {test_results_path}")
+    
+    return test_results
 
 def main(args):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -97,14 +153,18 @@ def main(args):
     print(f"Run: tensorboard --logdir={output_dir / 'runs'}")
     
     print("\nLoading dataset...")
-    train_loader, val_loader, dataset = create_dataloaders(
+    train_loader, val_loader, test_loader, dataset = create_dataloaders(
         hdf5_path=args.data_path,
         apply_scaling=True,
+        rebin_factor=args.rebin_factor,
         batch_size_train=args.batch_size_train,
         batch_size_val=args.batch_size_val,
+        batch_size_test=args.batch_size_test,
         train_split=args.train_split,
+        val_split=args.val_split,
         num_workers=args.num_workers,
-        pin_memory=torch.cuda.is_available()
+        pin_memory=torch.cuda.is_available(),
+        random_seed=args.random_seed
     )
     
     print("\nInitializing model...")
@@ -125,6 +185,7 @@ def main(args):
     
     writer.add_text('Hyperparameters/batch_size_train', str(args.batch_size_train), 0)
     writer.add_text('Hyperparameters/batch_size_val', str(args.batch_size_val), 0)
+    writer.add_text('Hyperparameters/batch_size_test', str(args.batch_size_test), 0)
     writer.add_text('Hyperparameters/learning_rate', str(args.lr), 0)
     writer.add_text('Hyperparameters/embedding_dim', str(args.emb_dim), 0)
     writer.add_text('Hyperparameters/temperature', str(args.temperature), 0)
@@ -139,7 +200,7 @@ def main(args):
     
     for epoch in range(args.num_epochs):
         train_loss = train_epoch(model, train_loader, optimizer, device, writer, epoch)
-        val_loss, val_acc, hung_val_acc = validate(model, val_loader, device, writer, epoch)
+        val_loss, val_acc, hung_val_acc = validate(model, val_loader, device, writer, epoch, prefix='validation')
         
         writer.add_scalar('Loss/train_epoch', train_loss, epoch)
         writer.add_scalars('Loss/train_vs_val', {
@@ -187,6 +248,17 @@ def main(args):
             }
             torch.save(checkpoint, output_dir / f'checkpoint_epoch_{epoch+1}.pth')
     
+    # Final test set evaluation
+    print("\nLoading best model for test evaluation...")
+    best_checkpoint = torch.load(output_dir / 'best_model.pth')
+    model.load_state_dict(best_checkpoint['model_state_dict'])
+    
+    test_results = evaluate_test(model, test_loader, device, output_dir)
+    
+    # Log test results to TensorBoard
+    for key, value in test_results.items():
+        writer.add_scalar(f'Test/{key}', value, 0)
+    
     writer.add_hparams(
         {
             'lr': args.lr,
@@ -199,6 +271,9 @@ def main(args):
             'best_val_loss': best_val_loss,
             'final_train_loss': train_loss,
             'final_val_loss': val_loss,
+            'test_loss': test_results['loss'],
+            'test_acc': test_results['acc'],
+            'test_hungarian_acc': test_results['hungarian_acc'],
         }
     )
     
@@ -216,12 +291,21 @@ if __name__ == "__main__":
     
     parser.add_argument('--data_path', type=str, required=True,
                         help='Path to HDF5 dataset')
+    parser.add_argument('--rebin_factor', type=int, default=1,
+                        help='Rebinning factor applied to the data (e.g. 2, 4, 8). '
+                         'Adjusts pixel coordinate normalization accordingly.')
     parser.add_argument('--batch_size_train', type=int, default=32,
                         help='Batch size training')
     parser.add_argument('--batch_size_val', type=int, default=8,
                         help='Batch size validation')
-    parser.add_argument('--train_split', type=float, default=0.8,
-                        help='Train/val split ratio')
+    parser.add_argument('--batch_size_test', type=int, default=8,
+                        help='Batch size for test set')
+    parser.add_argument('--train_split', type=float, default=0.75,
+                        help='Fraction of data for training')
+    parser.add_argument('--val_split', type=float, default=0.20,
+                        help='Fraction of data for validation')
+    parser.add_argument('--random_seed', type=int, default=42,
+                        help='Random seed for reproducible splits')
     parser.add_argument('--num_workers', type=int, default=4,
                         help='Number of data loading workers')
     
