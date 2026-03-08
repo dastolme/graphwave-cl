@@ -166,6 +166,18 @@ def main(args):
         pin_memory=torch.cuda.is_available(),
         random_seed=args.random_seed
     )
+
+    # Save normalization stats once (add these lines here)
+    norm_stats = {
+        'int_min': dataset.int_min.item() if dataset.int_min is not None else None,
+        'int_max': dataset.int_max.item() if dataset.int_max is not None else None,
+        'wave_min': dataset.wave_min.item() if dataset.wave_min is not None else None,
+        'wave_max': dataset.wave_max.item() if dataset.wave_max is not None else None,
+        'TOTAL_PIXEL_SIDE': dataset.TOTAL_PIXEL_SIDE,
+        'rebin_factor': args.rebin_factor
+    }
+    torch.save(norm_stats, output_dir / 'normalization_stats.pth')
+    print(f"Saved normalization stats to: {output_dir / 'normalization_stats.pth'}")
     
     print("\nInitializing model...")
     model = GraphWaveModel(
