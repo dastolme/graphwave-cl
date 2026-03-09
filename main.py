@@ -240,7 +240,9 @@ def main(args):
                 'val_loss': val_loss,
                 'val_acc': val_acc,
                 'hung_val_acc': hung_val_acc,
-                'args': vars(args)
+                'args': vars(args),
+                'node_in_dim': dataset.node_dim,
+                'wave_in_dim': dataset.wave_channels
             }
             torch.save(checkpoint, output_dir / 'best_model.pth')
             print(f"  → Saved best model (val_loss: {val_loss:.4f})")
@@ -256,7 +258,9 @@ def main(args):
                 'val_loss': val_loss,
                 'val_acc': val_acc,
                 'hung_val_acc': hung_val_acc,
-                'args': vars(args)
+                'args': vars(args),
+                'node_in_dim': dataset.node_dim,
+                'wave_in_dim': dataset.wave_channels
             }
             torch.save(checkpoint, output_dir / f'checkpoint_epoch_{epoch+1}.pth')
     
