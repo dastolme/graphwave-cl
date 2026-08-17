@@ -19,9 +19,8 @@ outputs/*
 # Large / binary files
 *.hdf5
 *.h5
-*.pt
-*.pth
 *.ckpt
+*.npz
 
 # System junk
 .DS_Store
@@ -31,3 +30,10 @@ Thumbs.db
 .vscode/
 .idea/
 
+# data
+AmBe_LG/
+Run4_LG/
+Run5_LG/
+
+# editor junk
+*.swp
