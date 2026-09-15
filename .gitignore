@@ -1,39 +1,8 @@
-# Python
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-
-# Virtual environments
-venv/
-.env/
-
-# Data (never commit)
-data/*
-!data/.gitkeep
-
-# Outputs / experiments
-outputs/*
-!outputs/.gitkeep
-
-# Large / binary files
 *.hdf5
 *.h5
-*.ckpt
+*.pth
 *.npz
-
-# System junk
-.DS_Store
-Thumbs.db
-
-# IDEs
-.vscode/
-.idea/
-
-# data
-AmBe_LG/
-Run4_LG/
-Run5_LG/
-
-# editor junk
-*.swp
+*.csv
+__pycache__/
+results/runs/
+matching_check/
